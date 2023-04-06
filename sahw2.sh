@@ -128,5 +128,72 @@ for file in "${files[@]}"; do
 done
 
 echo "This script will create the following user(s): ${usernames[@]} Do you want to continue? [y/n]:"
+read answer
+if [[ "$answer" == "n" || "$answer" == "" ]]; then
+    exit 0
+fi
+
+# Function to check if user already exists
+function user_exists() {
+    if id "$1" >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to create a new user
+function create_user() {
+    # Check if user already exists
+    if user_exists "$1"; then
+        echo "Warning: user $1 already exists."
+    else
+        # Create user with specified shell
+        pw useradd -n "$1" -s "$2" -m
+
+        # Set user password
+        echo "$3" | pw usermod "$1" -h 0
+
+	    IFS=',' read -ra group_list <<< "$4"
+        # Add user to specified groups
+        for group in "${group_list[@]}"; do
+	    group=$(echo "$group" | tr -d '\r')
+	    if [ "$group" == "" ]; then
+		    continue
+	    fi
+        if ! pw groupshow "$group" >/dev/null 2>&1; then
+            pw groupadd "$group"
+        fi
+        pw groupmod "$group" -m "$1"
+        done
+    fi
+}
+
+function read_json() {
+    local file="$1"
+    jq -c '.[]' "$file" | while read -r user_info; do
+        username=$(echo "$user_info" | jq -r '.username')
+        password=$(echo "$user_info" | jq -r '.password')
+        shell=$(echo "$user_info" | jq -r '.shell')
+        groups=$(echo "$user_info" | jq -r '.groups | @sh' | tr -d "'")
+        create_user "$username" "$shell" "$password" "${groups// /,}"
+    done
+}
+
+function read_csv() {
+    local file="$1"
+    tail -n +2 "$file" | while IFS=, read -r username password shell groups; do
+        create_user "$username" "$shell" "$password" "${groups// /,}"
+    done
+}
+
+# Loop through files array and handle each file
+for file in "${files[@]}"; do
+    if grep -q '{' "$file"; then
+        read_json "$file"
+    else
+        read_csv "$file"
+    fi
+done
 
 exit 0
