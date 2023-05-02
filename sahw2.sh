@@ -1,4 +1,10 @@
 #!/usr/local/bin/bash
+# Program:
+#   This program is a homework of NCKU SA_2023 Spring.
+#   Parse JSON and CSV files and create multiple users at once.
+# History:
+#   2023/03/30  jjj0425  First Release
+
 
 # status code:
 # 	[1]invalid arguments
